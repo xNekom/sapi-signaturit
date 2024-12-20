@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	<flow name="enviar-documento-firma" doc:id="264d8c10-b1b1-43fe-ae93-ec993eff1a7e" >
+		<http:listener doc:name="Listener" doc:id="32938cd8-4120-43c7-8af2-b1c739f1143b" config-ref="HTTP_Listener_config_Signaturit" path="/firma" allowedMethods="POST"/>
+		<ee:transform doc:name="Transform Message" doc:id="ace73160-d741-482d-8a1d-4ca04f3d0691" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output multipart/form-data
+---
+{
+    parts: {
+        "files[0]": {
+            headers: {
+                "Content-Type": "application/pdf",
+                "Content-Disposition": 'form-data; name="files[0]"; filename="document.pdf"'
+            },
+            content: payload.parts.documento.content
+        },
+        "recipients[0][email]": {
+            headers: {
+                "Content-Type": "text/plain",
+                "Content-Disposition": 'form-data; name="recipients[0][email]"'
+            },
+            content: payload.parts.email.content
+        },
+        "recipients[0][name]": {
+            headers: {
+                "Content-Type": "text/plain",
+                "Content-Disposition": 'form-data; name="recipients[0][name]"'
+            },
+            content: payload.parts.nombre.content
+        },
+        "recipients[0][surname]": {
+            headers: {
+                "Content-Type": "text/plain",
+                "Content-Disposition": 'form-data; name="recipients[0][surname]"'
+            },
+            content: payload.parts.apellido.content
+        },
+        "recipients[0][phone]": {
+            headers: {
+                "Content-Type": "text/plain",
+                "Content-Disposition": 'form-data; name="recipients[0][phone]"'
+            },
+            content: payload.parts.telefono.content
+        },
+        "recipients[0][authentication_type]": {
+            headers: {
+                "Content-Type": "text/plain",
+                "Content-Disposition": 'form-data; name="recipients[0][authentication_type]"'
+            },
+            content: "sms"
+        },
+        "type": {
+            headers: {
+                "Content-Type": "text/plain",
+                "Content-Disposition": 'form-data; name="type"'
+            },
+            content: "advanced"
+        }
+    }
+}
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="53c724e1-e4e4-41f1-85f4-5becc9d1d091" message="payload"/>
+		<http:request method="POST" doc:name="Request" doc:id="41e1732f-8607-44e5-9d50-e469994270a7" config-ref="HTTP_Request_Signaturit_Config" path="/v3/signatures.json">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ p('signaturit.token'),
+	"Accept" : "application/json"
+}]]]></http:headers>
+		</http:request>
+		<logger level="INFO" doc:name="Logger" doc:id="935302c1-4b99-4a54-89c0-d053ca6f9729" message="payload"/>
+	</flow>
+	<flow name="obtener-documento" doc:id="679255d1-ae4d-4189-818f-75a432dc85bd" >
+		<http:listener doc:name="Listener" doc:id="77dc47da-3ca6-4231-aaa8-d2975b358b8c" config-ref="HTTP_Listener_config_Signaturit" path="/documento/{signatureId}/{documentId}"/>
+		<http:request method="GET" doc:name="Request" doc:id="adf8b595-a4ad-48c6-adfd-c0c0e530752a" config-ref="HTTP_Request_Signaturit_Config" path="/v3/signatures/{signatureId}/documents/{documentId}/download/signed">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	'Authorization': 'Bearer ' ++ p('signaturit.token')
+}]]]></http:headers>
+		</http:request>
+		<ee:transform doc:name="Transform Message" doc:id="250d14c9-7d45-49dd-8a9b-cbab0673142e" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    mensaje: "Documento descargado correctamente",
+    signature_id: attributes.uriParams.signatureId,
+    document_id: attributes.uriParams.documentId,
+    contenido: payload
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="c3eb2023-fc77-488a-88b7-138ea79a8abb" message="payload"/>
+	</flow>
+
+	<flow name="webhook" doc:id="e84b1615-f689-469f-ae7b-272bfd389350" >
+		<http:listener doc:name="Listener" doc:id="06b649cf-0033-491c-b458-f894ea4f8334" config-ref="HTTP_Listener_config_Signaturit" path="/webhook" allowedMethods="POST"/>
+		<logger level="INFO" doc:name="Logger" doc:id="37db356c-7520-459b-97eb-fb571a39dfac" message='#["Webhook recibido: " ++ write(payload, "application/json")]'/>
+		<ee:transform doc:name="Transform Message" doc:id="c440ba88-2d57-4cfe-ab10-bf9ade7b3734" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    evento: payload.event_type,
+    estado_firma: payload.signature.status,
+    fecha_evento: payload.signature.delivered_at,
+    datos_documento: {
+        signature_id: payload.signature.id,
+        document_id: payload.signature.documents[0].id,
+        email_firmante: payload.signature.documents[0].email
+    }
+}
+]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="consultar-estado" doc:id="3c9257ed-6e49-4aad-85c8-c600437e40d7" >
+		<http:listener doc:name="Listener" doc:id="8dcd7717-5c32-482f-b0dc-a20565af3260" config-ref="HTTP_Listener_config_Signaturit" path="/api/signatures/{signatureId}/status" allowedMethods="GET"/>
+		<http:request method="GET" doc:name="Request" doc:id="9c40bb07-cc6d-4f7e-8512-5e315ce84632" config-ref="HTTP_Request_Signaturit_Config" path="/v3/signatures/{signatureId}.json">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Authorization" : 'Bearer ' ++ p('signaturit.token'),
+	"Accept" : 'application/json'
+}]]]></http:headers>
+			<http:uri-params ><![CDATA[#[output application/java
+---
+{
+	"signatureId" : attributes.uriParams.signatureId
+}]]]></http:uri-params>
+		</http:request>
+		<ee:transform doc:name="Transform Message" doc:id="eabcbed3-8dc4-4592-9ea3-ad091a42e21f" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    status: "SUCCESS",
+    data: {
+        signature_id: payload.id,
+        estado: payload.status,
+        documento: {
+            id: payload.documents[0].id,
+            estado: payload.documents[0].status
+        }
+    }
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="b3992020-7bb3-4236-af1c-342517d14353" message='#["Estado consultado: " ++ write(payload, "application/json")]'/>
+	</flow>
+
+</mule>
