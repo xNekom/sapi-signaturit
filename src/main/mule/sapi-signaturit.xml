@@ -78,7 +78,7 @@ output multipart/form-data
 	"Accept" : "application/json"
 }]]]></http:headers>
 		</http:request>
-		<logger level="INFO" doc:name="Logger" doc:id="935302c1-4b99-4a54-89c0-d053ca6f9729" message="payload"/>
+		<flow-ref doc:name="Flow Reference" doc:id="ce120c8e-364e-4748-b5e5-b2e20716d41b" name="webhook"/>
 	</flow>
 	<flow name="obtener-documento" doc:id="679255d1-ae4d-4189-818f-75a432dc85bd" >
 		<http:listener doc:name="Listener" doc:id="77dc47da-3ca6-4231-aaa8-d2975b358b8c" config-ref="HTTP_Listener_config_Signaturit" path="/documento/{signatureId}/{documentId}"/>
@@ -106,26 +106,29 @@ output application/json
 	</flow>
 
 	<flow name="webhook" doc:id="e84b1615-f689-469f-ae7b-272bfd389350" >
-		<http:listener doc:name="Listener" doc:id="06b649cf-0033-491c-b458-f894ea4f8334" config-ref="HTTP_Listener_config_Signaturit" path="/webhook" allowedMethods="POST"/>
-		<logger level="INFO" doc:name="Logger" doc:id="37db356c-7520-459b-97eb-fb571a39dfac" message='#["Webhook recibido: " ++ write(payload, "application/json")]'/>
 		<ee:transform doc:name="Transform Message" doc:id="c440ba88-2d57-4cfe-ab10-bf9ade7b3734" >
 			<ee:message >
 				<ee:set-payload ><![CDATA[%dw 2.0
-output application/json
+output application/x-www-form-urlencoded
 ---
 {
-    evento: payload.event_type,
-    estado_firma: payload.signature.status,
-    fecha_evento: payload.signature.delivered_at,
-    datos_documento: {
-        signature_id: payload.signature.id,
-        document_id: payload.signature.documents[0].id,
-        email_firmante: payload.signature.documents[0].email
-    }
+    "url": payload.parts.webhook_url.content,
+    "events[0]": "document_signed",
+    "events[1]": "document_completed",
+    "events[2]": "audit_trail_completed"
 }
 ]]></ee:set-payload>
 			</ee:message>
 		</ee:transform>
+		<http:request method="POST" doc:name="Request" doc:id="e6750870-9110-4ade-93e4-658f3669f3f4" config-ref="HTTP_Request_Signaturit_Config" path="/v3/subscriptions.json">
+			<http:headers ><![CDATA[#[output application/java
+---
+{
+	"Authorization" : "Bearer " ++ p('signaturit.token'),
+	"Content-Type" : "application/json"
+}]]]></http:headers>
+		</http:request>
+		<logger level="INFO" doc:name="Logger" doc:id="a6ef656b-1127-46d5-9c52-a7898a0de62a" message='#["Subscription creada: ID=" ++ (payload.id default "") ++ " - URL=" ++ (payload.url default "") ++ " - Eventos=" ++ (write(payload.events, "application/json"))]'/>
 	</flow>
 	<flow name="consultar-estado" doc:id="3c9257ed-6e49-4aad-85c8-c600437e40d7" >
 		<http:listener doc:name="Listener" doc:id="8dcd7717-5c32-482f-b0dc-a20565af3260" config-ref="HTTP_Listener_config_Signaturit" path="/api/signatures/{signatureId}/status" allowedMethods="GET"/>
