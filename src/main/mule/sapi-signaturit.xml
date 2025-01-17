@@ -78,7 +78,7 @@ output multipart/form-data
 	"Accept" : "application/json"
 }]]]></http:headers>
 		</http:request>
-		<flow-ref doc:name="Flow Reference" doc:id="ce120c8e-364e-4748-b5e5-b2e20716d41b" name="webhook"/>
+		<!-- [STUDIO:"Flow Reference"]<flow-ref doc:name="Flow Reference" doc:id="ce120c8e-364e-4748-b5e5-b2e20716d41b" name="webhook"/> [STUDIO] -->
 	</flow>
 	<flow name="obtener-documento" doc:id="679255d1-ae4d-4189-818f-75a432dc85bd" >
 		<http:listener doc:name="Listener" doc:id="77dc47da-3ca6-4231-aaa8-d2975b358b8c" config-ref="HTTP_Listener_config_Signaturit" path="/documento/{signatureId}/{documentId}"/>
