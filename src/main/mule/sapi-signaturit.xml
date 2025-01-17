@@ -80,31 +80,30 @@ output multipart/form-data
 		</http:request>
 		<!-- [STUDIO:"Flow Reference"]<flow-ref doc:name="Flow Reference" doc:id="ce120c8e-364e-4748-b5e5-b2e20716d41b" name="webhook"/> [STUDIO] -->
 	</flow>
-	<flow name="obtener-documento" doc:id="679255d1-ae4d-4189-818f-75a432dc85bd" >
-		<http:listener doc:name="Listener" doc:id="77dc47da-3ca6-4231-aaa8-d2975b358b8c" config-ref="HTTP_Listener_config_Signaturit" path="/documento/{signatureId}/{documentId}"/>
-		<http:request method="GET" doc:name="Request" doc:id="adf8b595-a4ad-48c6-adfd-c0c0e530752a" config-ref="HTTP_Request_Signaturit_Config" path="/v3/signatures/{signatureId}/documents/{documentId}/download/signed">
-			<http:headers ><![CDATA[#[output application/java
----
-{
-	'Authorization': 'Bearer ' ++ p('signaturit.token')
-}]]]></http:headers>
-		</http:request>
-		<ee:transform doc:name="Transform Message" doc:id="250d14c9-7d45-49dd-8a9b-cbab0673142e" >
-			<ee:message >
-				<ee:set-payload ><![CDATA[%dw 2.0
-output application/json
----
-{
-    mensaje: "Documento descargado correctamente",
-    signature_id: attributes.uriParams.signatureId,
-    document_id: attributes.uriParams.documentId,
-    contenido: payload
-}]]></ee:set-payload>
-			</ee:message>
-		</ee:transform>
-		<logger level="INFO" doc:name="Logger" doc:id="c3eb2023-fc77-488a-88b7-138ea79a8abb" message="payload"/>
-	</flow>
-
+	<flow name="obtener-documento">
+    <http:listener config-ref="HTTP_Listener_config_Signaturit" 
+                   path="/documento/{signatureId}/{documentId}"/>
+    
+    <http:request method="GET" config-ref="HTTP_Request_Signaturit_Config" 
+                 path="/v3/signatures/{signatureId}/documents/{documentId}/download/signed">
+        <http:headers>
+            <![CDATA[#[{
+                'Authorization': 'Bearer ' ++ p('signaturit.token'),
+                'Accept': 'application/pdf',
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': 'attachment; filename="documento_firmado.pdf"'
+            }]]]>
+        </http:headers>
+        <http:uri-params>
+            <![CDATA[#[{
+                signatureId: attributes.uriParams.signatureId,
+                documentId: attributes.uriParams.documentId
+            }]]]>
+        </http:uri-params>
+    </http:request>
+    
+    <logger level="INFO" message='#["Documento descargado de Signaturit - SignatureID: " ++ (attributes.uriParams.signatureId default "-")]'/>
+</flow>
 	<flow name="webhook" doc:id="e84b1615-f689-469f-ae7b-272bfd389350" >
 		<ee:transform doc:name="Transform Message" doc:id="c440ba88-2d57-4cfe-ab10-bf9ade7b3734" >
 			<ee:message >
