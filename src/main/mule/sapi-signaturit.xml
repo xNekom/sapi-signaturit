@@ -78,7 +78,6 @@ output multipart/form-data
 	"Accept" : "application/json"
 }]]]></http:headers>
 		</http:request>
-		<!-- [STUDIO:"Flow Reference"]<flow-ref doc:name="Flow Reference" doc:id="ce120c8e-364e-4748-b5e5-b2e20716d41b" name="webhook"/> [STUDIO] -->
 	</flow>
 	<flow name="obtener-documento">
     <http:listener config-ref="HTTP_Listener_config_Signaturit" 
@@ -104,31 +103,6 @@ output multipart/form-data
     
     <logger level="INFO" message='#["Documento descargado de Signaturit - SignatureID: " ++ (attributes.uriParams.signatureId default "-")]'/>
 </flow>
-	<flow name="webhook" doc:id="e84b1615-f689-469f-ae7b-272bfd389350" >
-		<ee:transform doc:name="Transform Message" doc:id="c440ba88-2d57-4cfe-ab10-bf9ade7b3734" >
-			<ee:message >
-				<ee:set-payload ><![CDATA[%dw 2.0
-output application/x-www-form-urlencoded
----
-{
-    "url": payload.parts.webhook_url.content,
-    "events[0]": "document_signed",
-    "events[1]": "document_completed",
-    "events[2]": "audit_trail_completed"
-}
-]]></ee:set-payload>
-			</ee:message>
-		</ee:transform>
-		<http:request method="POST" doc:name="Request" doc:id="e6750870-9110-4ade-93e4-658f3669f3f4" config-ref="HTTP_Request_Signaturit_Config" path="/v3/subscriptions.json">
-			<http:headers ><![CDATA[#[output application/java
----
-{
-	"Authorization" : "Bearer " ++ p('signaturit.token'),
-	"Content-Type" : "application/json"
-}]]]></http:headers>
-		</http:request>
-		<logger level="INFO" doc:name="Logger" doc:id="a6ef656b-1127-46d5-9c52-a7898a0de62a" message='#["Subscription creada: ID=" ++ (payload.id default "") ++ " - URL=" ++ (payload.url default "") ++ " - Eventos=" ++ (write(payload.events, "application/json"))]'/>
-	</flow>
 	<flow name="consultar-estado" doc:id="3c9257ed-6e49-4aad-85c8-c600437e40d7" >
 		<http:listener doc:name="Listener" doc:id="8dcd7717-5c32-482f-b0dc-a20565af3260" config-ref="HTTP_Listener_config_Signaturit" path="/api/signatures/{signatureId}/status" allowedMethods="GET"/>
 		<http:request method="GET" doc:name="Request" doc:id="9c40bb07-cc6d-4f7e-8512-5e315ce84632" config-ref="HTTP_Request_Signaturit_Config" path="/v3/signatures/{signatureId}.json">
