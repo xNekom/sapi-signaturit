@@ -83,25 +83,36 @@ output multipart/form-data
     <http:listener config-ref="HTTP_Listener_config_Signaturit" 
                    path="/documento/{signatureId}/{documentId}"/>
     
-    <http:request method="GET" config-ref="HTTP_Request_Signaturit_Config" 
-                 path="/v3/signatures/{signatureId}/documents/{documentId}/download/signed">
-        <http:headers>
-            <![CDATA[#[{
+    <try>
+        <http:request method="GET" 
+                     config-ref="HTTP_Request_Signaturit_Config" 
+                     path="/v3/signatures/{signatureId}/documents/{documentId}/download/signed">
+            <http:headers><![CDATA[#[{
                 'Authorization': 'Bearer ' ++ p('signaturit.token'),
-                'Accept': 'application/pdf',
-                'Content-Type': 'application/pdf',
-                'Content-Disposition': 'attachment; filename="documento_firmado.pdf"'
-            }]]]>
-        </http:headers>
-        <http:uri-params>
-            <![CDATA[#[{
+                'Accept': 'application/pdf'
+            }]]]></http:headers>
+            <http:uri-params><![CDATA[#[{
                 signatureId: attributes.uriParams.signatureId,
                 documentId: attributes.uriParams.documentId
-            }]]]>
-        </http:uri-params>
-    </http:request>
-    
-    <logger level="INFO" message='#["Documento descargado de Signaturit - SignatureID: " ++ (attributes.uriParams.signatureId default "-")]'/>
+            }]]]></http:uri-params>
+        </http:request>
+        
+        <error-handler>
+            <on-error-continue type="HTTP:FORBIDDEN">
+                <ee:transform>
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+                        output application/json
+                        ---
+                        {
+                            "error": "Documento no disponible",
+                            "message": "El documento aún no está listo para descarga"
+                        }]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+            </on-error-continue>
+        </error-handler>
+    </try>
 </flow>
 	<flow name="consultar-estado" doc:id="3c9257ed-6e49-4aad-85c8-c600437e40d7" >
 		<http:listener doc:name="Listener" doc:id="8dcd7717-5c32-482f-b0dc-a20565af3260" config-ref="HTTP_Listener_config_Signaturit" path="/api/signatures/{signatureId}/status" allowedMethods="GET"/>
