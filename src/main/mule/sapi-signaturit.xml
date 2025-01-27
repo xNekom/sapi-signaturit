@@ -1,16 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
-	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core"
-	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
-http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
-http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
-	<flow name="enviar-documento-firma" doc:id="264d8c10-b1b1-43fe-ae93-ec993eff1a7e" >
-		<http:listener doc:name="Listener" doc:id="32938cd8-4120-43c7-8af2-b1c739f1143b" config-ref="HTTP_Listener_config_Signaturit" path="/firma" allowedMethods="POST"/>
-		<ee:transform doc:name="Transform Message" doc:id="ace73160-d741-482d-8a1d-4ca04f3d0691" >
-			<ee:message >
-				<ee:set-payload ><![CDATA[%dw 2.0
+    xmlns:http="http://www.mulesoft.org/schema/mule/http"
+    xmlns="http://www.mulesoft.org/schema/mule/core"
+    xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd 
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+
+    <flow name="enviar-documento-firma">
+        <http:listener config-ref="HTTP_Listener_config_Signaturit" 
+                      path="/firma" 
+                      allowedMethods="POST"
+                      doc:name="Recibir solicitud de firma"/>
+        
+        <ee:transform doc:name="Preparar payload multipart">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
 output multipart/form-data
 ---
 {
@@ -65,62 +72,91 @@ output multipart/form-data
             content: "advanced"
         }
     }
-}
-]]></ee:set-payload>
-			</ee:message>
-		</ee:transform>
-		<logger level="INFO" doc:name="Logger" doc:id="53c724e1-e4e4-41f1-85f4-5becc9d1d091" message="payload"/>
-		<http:request method="POST" doc:name="Request" doc:id="41e1732f-8607-44e5-9d50-e469994270a7" config-ref="HTTP_Request_Signaturit_Config" path="/v3/signatures.json">
-			<http:headers ><![CDATA[#[output application/java
+}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        
+        <logger level="INFO" 
+              message="payload"
+              doc:name="Registrar payload inicial"/>
+        
+        <http:request method="POST" 
+                    config-ref="HTTP_Request_Signaturit_Config" 
+                    path="/v3/signatures.json"
+                    doc:name="Enviar a Signaturit API">
+            <http:headers><![CDATA[#[output application/java
 ---
 {
-	"Authorization" : "Bearer " ++ p('signaturit.token'),
-	"Accept" : "application/json"
+    "Authorization" : "Bearer " ++ p('signaturit.token'),
+    "Accept" : "application/json"
 }]]]></http:headers>
-		</http:request>
-	</flow>
-	<flow name="obtener-documento">
-    <http:listener config-ref="HTTP_Listener_config_Signaturit" 
-                   path="/documento/{signatureId}/{documentId}"/>
-    
-    <http:request method="GET" config-ref="HTTP_Request_Signaturit_Config" 
-                 path="/v3/signatures/{signatureId}/documents/{documentId}/download/signed">
-        <http:headers>
-            <![CDATA[#[{
-                'Authorization': 'Bearer ' ++ p('signaturit.token'),
-                'Accept': 'application/pdf',
-                'Content-Type': 'application/pdf',
-                'Content-Disposition': 'attachment; filename="documento_firmado.pdf"'
-            }]]]>
-        </http:headers>
-        <http:uri-params>
-            <![CDATA[#[{
-                signatureId: attributes.uriParams.signatureId,
-                documentId: attributes.uriParams.documentId
-            }]]]>
-        </http:uri-params>
-    </http:request>
-    
-    <logger level="INFO" message='#["Documento descargado de Signaturit - SignatureID: " ++ (attributes.uriParams.signatureId default "-")]'/>
-</flow>
-	<flow name="consultar-estado" doc:id="3c9257ed-6e49-4aad-85c8-c600437e40d7" >
-		<http:listener doc:name="Listener" doc:id="8dcd7717-5c32-482f-b0dc-a20565af3260" config-ref="HTTP_Listener_config_Signaturit" path="/api/signatures/{signatureId}/status" allowedMethods="GET"/>
-		<http:request method="GET" doc:name="Request" doc:id="9c40bb07-cc6d-4f7e-8512-5e315ce84632" config-ref="HTTP_Request_Signaturit_Config" path="/v3/signatures/{signatureId}.json">
-			<http:headers ><![CDATA[#[output application/java
+        </http:request>
+    </flow>
+
+    <flow name="obtener-documento">
+        <http:listener config-ref="HTTP_Listener_config_Signaturit" 
+                      path="/documento/{signatureId}/{documentId}"
+                      doc:name="Recibir solicitud documento"/>
+        
+        <try doc:name="Intentar obtener documento">
+            <http:request method="GET" 
+                        config-ref="HTTP_Request_Signaturit_Config" 
+                        path="/v3/signatures/{signatureId}/documents/{documentId}/download/signed"
+                        doc:name="Obtener documento firmado">
+                <http:headers><![CDATA[#[{
+                    'Authorization': 'Bearer ' ++ p('signaturit.token'),
+                    'Accept': 'application/pdf'
+                }]]]></http:headers>
+                <http:uri-params><![CDATA[#[{
+                    signatureId: attributes.uriParams.signatureId,
+                    documentId: attributes.uriParams.documentId
+                }]]]></http:uri-params>
+            </http:request>
+            
+            <error-handler>
+                <on-error-continue type="HTTP:FORBIDDEN" doc:name="Manejar error 403">
+                    <ee:transform doc:name="Generar respuesta error">
+                        <ee:message>
+                            <ee:set-payload><![CDATA[%dw 2.0
+                            output application/json
+                            ---
+                            {
+                                "error": "Documento no disponible",
+                                "message": "El documento aún no está listo para descarga"
+                            }]]></ee:set-payload>
+                        </ee:message>
+                    </ee:transform>
+                </on-error-continue>
+            </error-handler>
+        </try>
+    </flow>
+
+    <flow name="consultar-estado">
+        <http:listener config-ref="HTTP_Listener_config_Signaturit" 
+                      path="/api/signatures/{signatureId}/status" 
+                      allowedMethods="GET"
+                      doc:name="Recibir consulta estado"/>
+        
+        <http:request method="GET" 
+                    config-ref="HTTP_Request_Signaturit_Config" 
+                    path="/v3/signatures/{signatureId}.json"
+                    doc:name="Consultar estado en Signaturit">
+            <http:headers><![CDATA[#[output application/java
 ---
 {
-	"Authorization" : 'Bearer ' ++ p('signaturit.token'),
-	"Accept" : 'application/json'
+    "Authorization" : 'Bearer ' ++ p('signaturit.token'),
+    "Accept" : 'application/json'
 }]]]></http:headers>
-			<http:uri-params ><![CDATA[#[output application/java
+            <http:uri-params><![CDATA[#[output application/java
 ---
 {
-	"signatureId" : attributes.uriParams.signatureId
+    "signatureId" : attributes.uriParams.signatureId
 }]]]></http:uri-params>
-		</http:request>
-		<ee:transform doc:name="Transform Message" doc:id="eabcbed3-8dc4-4592-9ea3-ad091a42e21f" >
-			<ee:message >
-				<ee:set-payload ><![CDATA[%dw 2.0
+        </http:request>
+        
+        <ee:transform doc:name="Formatear respuesta estado">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
 output application/json
 ---
 {
@@ -134,9 +170,11 @@ output application/json
         }
     }
 }]]></ee:set-payload>
-			</ee:message>
-		</ee:transform>
-		<logger level="INFO" doc:name="Logger" doc:id="b3992020-7bb3-4236-af1c-342517d14353" message='#["Estado consultado: " ++ write(payload, "application/json")]'/>
-	</flow>
-
+            </ee:message>
+        </ee:transform>
+        
+        <logger level="INFO" 
+              message='#["Estado consultado: " ++ write(payload, "application/json")]'
+              doc:name="Registrar estado consultado"/>
+    </flow>
 </mule>
