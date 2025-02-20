@@ -6,10 +6,10 @@
 http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
 http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd">
 	<http:listener-config name="HTTP_Listener_config_Signaturit" doc:name="HTTP Listener config">
-        <http:listener-connection host="0.0.0.0" port="8081"/>
+        <http:listener-connection host="${http.host}" port="${http.port}"/>
     </http:listener-config>
 	<http:request-config name="HTTP_Request_Signaturit_Config" doc:name="HTTP Request configuration" doc:id="a18cc610-2806-4e20-93ea-41869aa8c83d">
-    <http:request-connection protocol="HTTPS" host="api.sandbox.signaturit.com" port="443"/>
+    <http:request-connection protocol="HTTPS" host="${signaturit.host}" port="${signaturit.port}"/>
 </http:request-config>
 	<configuration-properties doc:name="Configuration properties" doc:id="37633dfe-6655-4fb3-9125-43aeb7ea2320" file="config.yaml" />
 </mule>
